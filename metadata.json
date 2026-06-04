@@ -1,0 +1,10 @@
+{
+  "name": "Automotive Marketplace & Discovery Platform",
+  "description": "An enterprise-grade luxury automotive marketplace, interactive vehicle configurator, side-by-side comparison engine, and server-side AI personal advisor.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
