@@ -1,13 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
-match /databases/{database}/documents {
+  match /databases/{database}/documents {
 
     // 1. Global Default-Deny Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // 2. Hardened Access Helpers
+    // 2. Hardened Access Helpers - The Eight Pillars & ID Guards
     function isSignedIn() {
       return request.auth != null;
     }
@@ -42,87 +42,249 @@ match /databases/{database}/documents {
       return resource.data;
     }
 
-    // 3. Collection Rule Blocks
+    // Standalone validators per Eight Pillars standard:
 
-    // VEHICLES
+    function isValidVehicle(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 200
+        && data.brand is string && data.brand.size() <= 100
+        && data.model is string && data.model.size() <= 100
+        && data.year is int
+        && data.category is string && data.category.size() <= 100
+        && data.price is int && data.price >= 0
+        && data.description is string && data.description.size() <= 4000;
+    }
+
+    function isValidBrand(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.brand_name is string && data.brand_name.size() <= 100
+        && data.country is string && data.country.size() <= 100
+        && data.founded_year is int;
+    }
+
+    function isValidCategory(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.category_name is string && data.category_name.size() <= 200;
+    }
+
+    function isValidReview(data) {
+      return data.vehicle_id is string && data.vehicle_id.size() <= 128
+        && data.rating is int && data.rating >= 1 && data.rating <= 5
+        && data.review is string && data.review.size() <= 5000
+        && data.author is string && data.author.size() <= 200
+        && data.author_id == request.auth.uid;
+    }
+
+    function isValidReservation(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.vehicleId is string && data.vehicleId.size() <= 128
+        && data.vehicleName is string && data.vehicleName.size() <= 200
+        && data.brand is string && data.brand.size() <= 100
+        && data.userId == request.auth.uid
+        && data.userEmail is string && data.userEmail.size() <= 320
+        && data.userName is string && data.userName.size() <= 200
+        && data.lounge is string && data.lounge.size() <= 200
+        && data.date is string && data.date.size() <= 100
+        && data.time is string && data.time.size() <= 100
+        && (data.status == 'pending' || data.status == 'confirmed' || data.status == 'cancelled');
+    }
+
+    function isValidUser(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.id == request.auth.uid
+        && data.name is string && data.name.size() <= 200
+        && data.email is string && data.email.size() <= 320
+        && (data.role == 'user' || (data.role == 'admin' && request.auth.token.email == 'abhavanishankar989@gmail.com'));
+    }
+
+    function isValidVehicleColor(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.vehicleId is string && data.vehicleId.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.hex is string && data.hex.size() <= 30
+        && data.price is int && data.price >= 0;
+    }
+
+    function isValidVehicleWheel(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.vehicleId is string && data.vehicleId.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.price is int && data.price >= 0;
+    }
+
+    function isValidVehicleInterior(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.vehicleId is string && data.vehicleId.size() <= 128
+        && data.name is string && data.name.size() <= 200
+        && data.price is int && data.price >= 0;
+    }
+
+    function isValidVehiclePackage(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.vehicleId is string && data.vehicleId.size() <= 128
+        && data.name is string && data.name.size() <= 200
+        && data.description is string && data.description.size() <= 1000
+        && data.price is int && data.price >= 0;
+    }
+
+    function isValidVehicleConfiguration(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.userId == request.auth.uid
+        && data.vehicleId is string && data.vehicleId.size() <= 128
+        && data.colorId is string && data.colorId.size() <= 128
+        && data.wheelId is string && data.wheelId.size() <= 128
+        && data.interiorId is string && data.interiorId.size() <= 128
+        && data.packageIds is list
+        && data.packageIds.size() <= 15
+        && data.totalPrice is int && data.totalPrice >= 0;
+    }
+
+    function isValidVehicleImage(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.vehicleId is string && data.vehicleId.size() <= 128
+        && data.imageUrl is string && data.imageUrl.size() <= 2000;
+    }
+
+    function isValidComparisonHistory(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.userId == request.auth.uid
+        && data.comparedVehicleIds is list
+        && data.comparedVehicleIds.size() <= 15
+        && data.timestamp is string && data.timestamp.size() <= 100;
+    }
+
+    function isValidFavorite(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.userId == request.auth.uid
+        && data.vehicleId is string && data.vehicleId.size() <= 128;
+    }
+
+    // 3. Collection Rule Blocks - Zero Trust RBAC Enforced
+
+    // VEHICLES (Administrative write constraint, Guest public read)
     match /vehicles/{vehicleId} {
       allow read: if true;
-      allow create, update, delete: if true; // Matches the original permissive structure
+      allow create: if isVerifiedUser() && isAdmin() && isValidId(vehicleId) && isValidVehicle(incoming());
+      allow update: if isVerifiedUser() && isAdmin() && isValidId(vehicleId) && isValidVehicle(incoming());
+      allow delete: if isVerifiedUser() && isAdmin() && isValidId(vehicleId);
     }
 
     // BRANDS
     match /brands/{brandId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow create: if isVerifiedUser() && isAdmin() && isValidId(brandId) && isValidBrand(incoming());
+      allow update: if isVerifiedUser() && isAdmin() && isValidId(brandId) && isValidBrand(incoming());
+      allow delete: if isVerifiedUser() && isAdmin() && isValidId(brandId);
     }
 
     // CATEGORIES
     match /categories/{categoryId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow create: if isVerifiedUser() && isAdmin() && isValidId(categoryId) && isValidCategory(incoming());
+      allow update: if isVerifiedUser() && isAdmin() && isValidId(categoryId) && isValidCategory(incoming());
+      allow delete: if isVerifiedUser() && isAdmin() && isValidId(categoryId);
     }
 
-    // REVIEWS
+    // REVIEWS (Poisoning & spoofing protection)
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow create: if isVerifiedUser() && isValidId(reviewId) && isValidReview(incoming()) 
+        && exists(/databases/$(database)/documents/vehicles/$(incoming().vehicle_id));
+      allow update: if isVerifiedUser() && isValidId(reviewId) && isOwner(existing().author_id) && isValidReview(incoming());
+      allow delete: if isVerifiedUser() && isValidId(reviewId) && (isOwner(existing().author_id) || isAdmin());
     }
 
-    // RESERVATIONS / BOOKINGS
+    // RESERVATIONS / BOOKINGS (Relational consistency + Ownership isolation list read)
     match /reservations/{reservationId} {
-      allow read: if true;
-      allow create, update, delete: if true;
+      allow get: if isVerifiedUser() && (isOwner(existing().userId) || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(reservationId) && isValidId(incoming().vehicleId) && isValidReservation(incoming())
+        && exists(/databases/$(database)/documents/vehicles/$(incoming().vehicleId));
+      allow update: if isVerifiedUser() && isValidId(reservationId) && (
+        (isOwner(existing().userId) && isValidReservation(incoming())) || 
+        isAdmin()
+      );
+      allow delete: if isVerifiedUser() && isValidId(reservationId) && (isOwner(existing().userId) || isAdmin());
     }
 
-    // USERS
+    // USERS (Self profile isolation write block)
     match /users/{userId} {
-      allow read: if true;
-      allow create, update, delete: if true;
+      allow read: if isVerifiedUser() && (isOwner(userId) || isAdmin());
+      allow create: if isVerifiedUser() && isOwner(userId) && isValidUser(incoming());
+      allow update: if isVerifiedUser() && (
+        (isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role) || // Prevents direct self-promotion
+        isAdmin()
+      );
+      allow delete: if isVerifiedUser() && isAdmin();
     }
 
     // VEHICLE COLORS
     match /vehicle_colors/{colorId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow create: if isVerifiedUser() && isAdmin() && isValidId(colorId) && isValidVehicleColor(incoming());
+      allow update: if isVerifiedUser() && isAdmin() && isValidId(colorId) && isValidVehicleColor(incoming());
+      allow delete: if isVerifiedUser() && isAdmin() && isValidId(colorId);
     }
 
     // VEHICLE WHEELS
     match /vehicle_wheels/{wheelId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow create: if isVerifiedUser() && isAdmin() && isValidId(wheelId) && isValidVehicleWheel(incoming());
+      allow update: if isVerifiedUser() && isAdmin() && isValidId(wheelId) && isValidVehicleWheel(incoming());
+      allow delete: if isVerifiedUser() && isAdmin() && isValidId(wheelId);
     }
 
     // VEHICLE INTERIORS
     match /vehicle_interiors/{interiorId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow create: if isVerifiedUser() && isAdmin() && isValidId(interiorId) && isValidVehicleInterior(incoming());
+      allow update: if isVerifiedUser() && isAdmin() && isValidId(interiorId) && isValidVehicleInterior(incoming());
+      allow delete: if isVerifiedUser() && isAdmin() && isValidId(interiorId);
     }
 
     // VEHICLE PACKAGES
     match /vehicle_packages/{packageId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow create: if isVerifiedUser() && isAdmin() && isValidId(packageId) && isValidVehiclePackage(incoming());
+      allow update: if isVerifiedUser() && isAdmin() && isValidId(packageId) && isValidVehiclePackage(incoming());
+      allow delete: if isVerifiedUser() && isAdmin() && isValidId(packageId);
     }
 
     // VEHICLE IMAGES
     match /vehicle_images/{imageId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow create: if isVerifiedUser() && isAdmin() && isValidId(imageId) && isValidVehicleImage(incoming());
+      allow update: if isVerifiedUser() && isAdmin() && isValidId(imageId) && isValidVehicleImage(incoming());
+      allow delete: if isVerifiedUser() && isAdmin() && isValidId(imageId);
     }
 
     // VEHICLE CONFIGURATIONS (Saves selected configuration)
     match /vehicle_configurations/{configId} {
-      allow read, write: if true;
+      allow get: if isVerifiedUser() && (isOwner(existing().userId) || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(configId) && isValidVehicleConfiguration(incoming())
+        && exists(/databases/$(database)/documents/vehicles/$(incoming().vehicleId));
+      allow update: if isVerifiedUser() && isValidId(configId) && isOwner(existing().userId) && isValidVehicleConfiguration(incoming());
+      allow delete: if isVerifiedUser() && isValidId(configId) && (isOwner(existing().userId) || isAdmin());
     }
 
     // COMPARISON HISTORY
     match /comparison_history/{historyId} {
-      allow read, write: if true;
+      allow get: if isVerifiedUser() && (isOwner(existing().userId) || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(historyId) && isValidComparisonHistory(incoming());
+      allow update: if isVerifiedUser() && isValidId(historyId) && isOwner(existing().userId) && isValidComparisonHistory(incoming());
+      allow delete: if isVerifiedUser() && isValidId(historyId) && (isOwner(existing().userId) || isAdmin());
     }
 
     // FAVORITES
     match /favorites/{favoriteId} {
-      allow read, write: if true;
+      allow get: if isVerifiedUser() && (isOwner(existing().userId) || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(favoriteId) && isValidId(incoming().vehicleId) && isValidFavorite(incoming())
+        && exists(/databases/$(database)/documents/vehicles/$(incoming().vehicleId));
+      allow update: if isVerifiedUser() && isValidId(favoriteId) && isOwner(existing().userId) && isValidFavorite(incoming());
+      allow delete: if isVerifiedUser() && isValidId(favoriteId) && (isOwner(existing().userId) || isAdmin());
     }
   }
 }
