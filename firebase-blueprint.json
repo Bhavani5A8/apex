@@ -25,6 +25,7 @@
         "price": { "type": "integer", "description": "Base pricing" },
         "description": { "type": "string", "description": "Stylistic or sales description" },
         "specifications": { "type": "object", "description": "Full technical specifications array/mappings" },
+        "image": { "type": "string", "description": "Main default vehicle image URL" },
         "images": { "type": "array", "description": "List of URLs to high-quality vehicle images" },
         "videos": { "type": "array", "description": "List of links to video walks" },
         "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
@@ -82,6 +83,111 @@
         "role": { "type": "string", "enum": ["user", "admin"], "description": "User access level" }
       },
       "required": ["id", "name", "email", "role"]
+    },
+    "VehicleColor": {
+      "title": "VehicleColor",
+      "description": "Available metallic/satin paint formulas per vehicle",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique paint identification key" },
+        "vehicleId": { "type": "string", "description": "Associated vehicle document key" },
+        "name": { "type": "string", "description": "Paint style name" },
+        "hex": { "type": "string", "description": "Color hex code" },
+        "price": { "type": "integer", "description": "Pricing option cost" },
+        "previewColor": { "type": "string", "description": "Simplified preview classification name" }
+      },
+      "required": ["id", "vehicleId", "name", "hex", "price"]
+    },
+    "VehicleWheel": {
+      "title": "VehicleWheel",
+      "description": "Available magnesium/alloy wheel designs per vehicle",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique wheel key" },
+        "vehicleId": { "type": "string", "description": "Associated vehicle key" },
+        "name": { "type": "string", "description": "Performance styling description" },
+        "price": { "type": "integer", "description": "Incremental cost" },
+        "previewUrl": { "type": "string", "description": "Preview class/URL string" }
+      },
+      "required": ["id", "vehicleId", "name", "price"]
+    },
+    "VehicleInterior": {
+      "title": "VehicleInterior",
+      "description": "Available lounge leather configurations per vehicle",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique interior design key" },
+        "vehicleId": { "type": "string", "description": "Associated vehicle key" },
+        "name": { "type": "string", "description": "Interior design styling name" },
+        "price": { "type": "integer", "description": "Incremental interior package cost" }
+      },
+      "required": ["id", "vehicleId", "name", "price"]
+    },
+    "VehiclePackage": {
+      "title": "VehiclePackage",
+      "description": "Luxury performance/autonomous tech upgrades",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique upgrade key" },
+        "vehicleId": { "type": "string", "description": "Associated vehicle key" },
+        "name": { "type": "string", "description": "Name of the optional package" },
+        "description": { "type": "string", "description": "Performance specs details description" },
+        "price": { "type": "integer", "description": "Upgrade premium surcharge" }
+      },
+      "required": ["id", "vehicleId", "name", "description", "price"]
+    },
+    "VehicleImage": {
+      "title": "VehicleImage",
+      "description": "Specific variant and high-res perspective image routes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique asset key" },
+        "vehicleId": { "type": "string", "description": "Associated vehicle key" },
+        "colorId": { "type": "string", "description": "Optional color paint identification key reference" },
+        "imageUrl": { "type": "string", "description": "High resolution full perspective rendering image URL" },
+        "thumbnailUrl": { "type": "string", "description": "Compact thumbnail rendering URL" }
+      },
+      "required": ["id", "vehicleId", "imageUrl"]
+    },
+    "VehicleConfiguration": {
+      "title": "VehicleConfiguration",
+      "description": "Record tracking currently saved active custom configurations for client profiles",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Configuration ticket serial id" },
+        "userId": { "type": "string", "description": "Creator UID, supports guest strings" },
+        "vehicleId": { "type": "string", "description": "Vehicle outline reference" },
+        "colorId": { "type": "string", "description": "Selected color id" },
+        "wheelId": { "type": "string", "description": "Selected wheel id" },
+        "interiorId": { "type": "string", "description": "Selected interior id" },
+        "packageIds": { "type": "array", "description": "List of active surcharge options package IDs" },
+        "totalPrice": { "type": "integer", "description": "Total checkout price" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "State modification tick" }
+      },
+      "required": ["id", "userId", "vehicleId", "colorId", "wheelId", "totalPrice"]
+    },
+    "ComparisonHistory": {
+      "title": "ComparisonHistory",
+      "description": "Historic comparison event audit records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Comparison ticket key" },
+        "userId": { "type": "string", "description": "Client auditor UID" },
+        "comparedVehicleIds": { "type": "array", "description": "Array of vehicle unique keys" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Audit tick" }
+      },
+      "required": ["id", "userId", "comparedVehicleIds", "timestamp"]
+    },
+    "Favorite": {
+      "title": "Favorite",
+      "description": "Shortlisted vehicle tracking cards",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Composite UID-VehicleID key" },
+        "userId": { "type": "string", "description": "Client holder key" },
+        "vehicleId": { "type": "string", "description": "Faved vehicle key" }
+      },
+      "required": ["id", "userId", "vehicleId"]
     }
   },
   "firestore": {
@@ -104,6 +210,38 @@
     "users": {
       "schema": { "$ref": "#/definitions/User" },
       "description": "User profiles synchronizing credentials with role authorizations"
+    },
+    "vehicle_colors": {
+      "schema": { "$ref": "#/definitions/VehicleColor" },
+      "description": "Colors customization catalogue list mapping styles and variant prices"
+    },
+    "vehicle_wheels": {
+      "schema": { "$ref": "#/definitions/VehicleWheel" },
+      "description": "Wheel customization catalog lists mapping wheel options and surcharge margins"
+    },
+    "vehicle_interiors": {
+      "schema": { "$ref": "#/definitions/VehicleInterior" },
+      "description": "Luxury custom materials and trim options"
+    },
+    "vehicle_packages": {
+      "schema": { "$ref": "#/definitions/VehiclePackage" },
+      "description": "Tech options and premium upgrade packages catalog"
+    },
+    "vehicle_images": {
+      "schema": { "$ref": "#/definitions/VehicleImage" },
+      "description": "Dynamic variant image mapping database"
+    },
+    "vehicle_configurations": {
+      "schema": { "$ref": "#/definitions/VehicleConfiguration" },
+      "description": "Historic and active configurations persisted state lists"
+    },
+    "comparison_history": {
+      "schema": { "$ref": "#/definitions/ComparisonHistory" },
+      "description": "Manual client vehicle audit listings"
+    },
+    "favorites": {
+      "schema": { "$ref": "#/definitions/Favorite" },
+      "description": "Vehicle client shortlist markers"
     }
   }
 }

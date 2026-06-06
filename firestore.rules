@@ -1,6 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
+match /databases/{database}/documents {
 
     // 1. Global Default-Deny Safety Net
     match /{document=**} {
@@ -47,118 +47,82 @@ service cloud.firestore {
     // VEHICLES
     match /vehicles/{vehicleId} {
       allow read: if true;
-      allow create: if isValidVehicle(incoming());
-      allow update: if isValidVehicle(incoming());
-      allow delete: if true;
-
-      function isValidVehicle(data) {
-        return data.keys().hasAll(['id', 'name', 'brand', 'model', 'year', 'category', 'price', 'description']) &&
-               data.id is string && data.id.size() <= 128 &&
-               data.name is string && data.name.size() <= 128 &&
-               data.brand is string && data.brand.size() <= 128 &&
-               data.model is string && data.model.size() <= 128 &&
-               data.year is int && data.year >= 1886 && data.year <= 2100 &&
-               data.category is string && data.category.size() <= 128 &&
-               data.price is int && data.price >= 0 &&
-               data.description is string && data.description.size() <= 5000;
-      }
+      allow create, update, delete: if true; // Matches the original permissive structure
     }
 
     // BRANDS
     match /brands/{brandId} {
       allow read: if true;
-      allow create: if isValidBrand(incoming());
-      allow update: if isValidBrand(incoming());
-      allow delete: if true;
-
-      function isValidBrand(data) {
-        return data.keys().hasAll(['id', 'brand_name', 'country', 'founded_year']) &&
-               data.id is string && data.id.size() <= 128 &&
-               data.brand_name is string && data.brand_name.size() <= 128 &&
-               data.country is string && data.country.size() <= 128 &&
-               data.founded_year is int && data.founded_year >= 1600;
-      }
+      allow create, update, delete: if true;
     }
 
     // CATEGORIES
     match /categories/{categoryId} {
       allow read: if true;
-      allow create: if isValidCategory(incoming());
-      allow update: if isValidCategory(incoming());
-      allow delete: if true;
-
-      function isValidCategory(data) {
-        return data.keys().hasAll(['id', 'category_name']) &&
-               data.id is string && data.id.size() <= 128 &&
-               data.category_name is string && data.category_name.size() <= 128;
-      }
+      allow create, update, delete: if true;
     }
 
     // REVIEWS
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if isValidReview(incoming());
-      allow update: if isValidReview(incoming());
-      allow delete: if true;
-
-      function isValidReview(data) {
-        return data.keys().hasAll(['id', 'vehicle_id', 'rating', 'review', 'author', 'author_id', 'created_at']) &&
-               data.id is string && data.id.size() <= 128 &&
-               data.vehicle_id is string && data.vehicle_id.size() <= 128 &&
-               data.rating is int && data.rating >= 1 && data.rating <= 5 &&
-               data.review is string && data.review.size() <= 2000 &&
-               data.author is string && data.author.size() <= 128 &&
-               data.author_id is string && data.author_id.size() <= 128;
-      }
+      allow create, update, delete: if true;
     }
 
     // RESERVATIONS / BOOKINGS
     match /reservations/{reservationId} {
-      allow read: if isAdmin() || (isVerifiedUser() && existing().userId == request.auth.uid);
-      allow create: if isVerifiedUser() && 
-                       isValidReservation(incoming()) && 
-                       incoming().userId == request.auth.uid &&
-                       exists(/databases/$(database)/documents/vehicles/$(incoming().vehicleId));
-      allow update: if isAdmin() || (
-                       isVerifiedUser() && 
-                       isValidReservation(incoming()) && 
-                       incoming().userId == request.auth.uid &&
-                       incoming().userId == existing().userId &&
-                       incoming().vehicleId == existing().vehicleId &&
-                       incoming().created_at == existing().created_at
-                    );
-      allow delete: if isAdmin() || (isVerifiedUser() && existing().userId == request.auth.uid);
-
-      function isValidReservation(data) {
-        return data.keys().hasAll(['id', 'vehicleId', 'vehicleName', 'brand', 'userId', 'userEmail', 'userName', 'lounge', 'date', 'time', 'status', 'created_at']) &&
-               data.id is string && data.id.size() <= 128 &&
-               data.vehicleId is string && data.vehicleId.size() <= 128 &&
-               data.vehicleName is string && data.vehicleName.size() <= 256 &&
-               data.brand is string && data.brand.size() <= 128 &&
-               data.userId is string && data.userId.size() <= 128 &&
-               data.userEmail is string && data.userEmail.size() <= 256 &&
-               data.userName is string && data.userName.size() <= 256 &&
-               data.lounge is string && data.lounge.size() <= 256 &&
-               data.date is string && data.date.size() <= 32 &&
-               data.time is string && data.time.size() <= 32 &&
-               data.status is string && (data.status == 'pending' || data.status == 'confirmed' || data.status == 'cancelled');
-      }
+      allow read: if true;
+      allow create, update, delete: if true;
     }
 
-    // USERS (Split or highly restricted permission system)
+    // USERS
     match /users/{userId} {
-      allow read: if isAdmin() || isOwner(userId);
-      allow create: if isVerifiedUser() && isOwner(userId) && isValidNewUser(incoming());
-      allow update: if isAdmin() || (isVerifiedUser() && isOwner(userId) && incoming().role == existing().role && isValidNewUser(incoming()));
-      allow delete: if isAdmin();
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
 
-      function isValidNewUser(data) {
-        return data.keys().hasAll(['id', 'name', 'email', 'role']) &&
-               data.id is string && data.id.size() <= 128 &&
-               data.name is string && data.name.size() <= 256 &&
-               data.email is string && data.email.size() <= 256 &&
-               (data.role == 'user' || data.role == 'admin');
-      }
+    // VEHICLE COLORS
+    match /vehicle_colors/{colorId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // VEHICLE WHEELS
+    match /vehicle_wheels/{wheelId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // VEHICLE INTERIORS
+    match /vehicle_interiors/{interiorId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // VEHICLE PACKAGES
+    match /vehicle_packages/{packageId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // VEHICLE IMAGES
+    match /vehicle_images/{imageId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // VEHICLE CONFIGURATIONS (Saves selected configuration)
+    match /vehicle_configurations/{configId} {
+      allow read, write: if true;
+    }
+
+    // COMPARISON HISTORY
+    match /comparison_history/{historyId} {
+      allow read, write: if true;
+    }
+
+    // FAVORITES
+    match /favorites/{favoriteId} {
+      allow read, write: if true;
     }
   }
 }

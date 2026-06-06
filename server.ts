@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, getDocs } from "firebase/firestore";
+import { jsPDF } from "jspdf";
 
 dotenv.config();
 
@@ -308,6 +309,198 @@ Instructions:
 
   app.get("/vehicles/search", searchHandler);
   app.get("/api/vehicles/search", searchHandler);
+
+  // Dynamic Vehicle Configuration Downloads (JPG, PNG, PDF formats)
+  const downloadHandler = async (req: express.Request, res: express.Response) => {
+    try {
+      const id = req.params.id;
+      const format = (req.query.format as string || "pdf").toLowerCase();
+      const color = req.query.color as string || "Standard Paint";
+      const wheel = req.query.wheel as string || "Standard Performance Wheels";
+      const interior = req.query.interior as string || "Premium Lounge Leather";
+      const packagesStr = req.query.packages as string || "";
+      const packages = packagesStr ? packagesStr.split(",") : [];
+      const totalPrice = parseInt(req.query.price as string) || 90000;
+
+      const vehicles = await getCachedVehicles();
+      const v = vehicles.find((item: any) => item.id === id) || SYSTEM_VEHICLES.find(item => item.id === id) || vehicles[0];
+
+      const filename = `${v.brand.replace(/\s+/g, "_")}_${v.name.replace(/\s+/g, "_")}_Specification`;
+
+      if (format === "png" || format === "jpg") {
+        // Find matching variant image in vehicle_images or fallback
+        let imgUrl = v.image || "https://images.unsplash.com/photo-154228200569-fe8426682b8f?auto=format&fit=crop&w=1200&q=80";
+        
+        try {
+          const imgSnap = await getDocs(collection(db, "vehicle_images"));
+          const imgDocs = imgSnap.docs.map(doc => doc.data());
+          const match = imgDocs.find(x => x.vehicleId === id && (x.colorId?.includes(color.toLowerCase().replace(/[^a-z0-9]/g, "-")) || x.colorId === color));
+          if (match && match.imageUrl) {
+            imgUrl = match.imageUrl;
+          }
+        } catch (err) {
+          console.error("Failed to query variant image for downloading, fallback to main:", err);
+        }
+
+        // Fetch actual image binary data to trigger genuine attachments download
+        try {
+          const response = await fetch(imgUrl);
+          if (!response.ok) throw new Error("Failed to fetch image stream");
+          const arrayBuffer = await response.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+
+          res.setHeader("Content-Disposition", `attachment; filename="${filename}.${format}"`);
+          res.setHeader("Content-Type", format === "png" ? "image/png" : "image/jpeg");
+          res.setHeader("Content-Length", buffer.length);
+          return res.send(buffer);
+        } catch (err) {
+          console.error("Proxy fetch failed, redirecting to raw image instead:", err);
+          return res.redirect(imgUrl);
+        }
+      } else {
+        // Generate high-integrity PDF configuration receipt using jsPDF
+        const docPDF = new jsPDF({
+          orientation: "portrait",
+          unit: "mm",
+          format: "a4"
+        });
+
+        // Styling parameters matching Corporate Twilight luxury layout
+        docPDF.setFillColor(15, 15, 15);
+        docPDF.rect(0, 0, 210, 297, "F");
+
+        // Heading with Amber accents
+        docPDF.setTextColor(245, 158, 11);
+        docPDF.setFont("helvetica", "bold");
+        docPDF.setFontSize(22);
+        docPDF.text("APEX MOTORSPORTS", 20, 30);
+
+        docPDF.setTextColor(150, 150, 150);
+        docPDF.setFont("helvetica", "normal");
+        docPDF.setFontSize(10);
+        // Safely invoke setCharSpace if accessible in this release
+        if (typeof (docPDF as any).setCharSpace === "function") {
+          (docPDF as any).setCharSpace(1.2);
+        }
+        docPDF.text("HIGH-INTEGRITY VEHICLE CUSTOMIZATION SPECIFICATION", 20, 37);
+        if (typeof (docPDF as any).setCharSpace === "function") {
+          (docPDF as any).setCharSpace(0);
+        }
+
+        // Separator Line
+        docPDF.setDrawColor(40, 40, 40);
+        docPDF.setLineWidth(0.5);
+        docPDF.line(20, 42, 190, 42);
+
+        // Core Model Specs Detail
+        docPDF.setTextColor(255, 255, 255);
+        docPDF.setFontSize(16);
+        docPDF.setFont("helvetica", "bold");
+        docPDF.text(`${v.brand.toUpperCase()} - ${v.name.toUpperCase()}`, 20, 54);
+
+        docPDF.setTextColor(180, 180, 180);
+        docPDF.setFontSize(9.5);
+        docPDF.setFont("helvetica", "normal");
+        docPDF.text(v.description || "Prestige luxury configuration trim specifications", 20, 61, { maxWidth: 170 });
+
+        // Selections summary box
+        docPDF.setFillColor(25, 25, 25);
+        docPDF.rect(20, 74, 170, 75, "F");
+
+        docPDF.setTextColor(245, 158, 11);
+        docPDF.setFont("helvetica", "bold");
+        docPDF.setFontSize(11);
+        docPDF.text("BUILD CONFIGURATION SUMMARY", 26, 82);
+
+        docPDF.setTextColor(240, 240, 240);
+        docPDF.setFont("helvetica", "normal");
+        docPDF.setFontSize(10);
+
+        const summaryItems = [
+          { label: "Bespoke Paint Formula:", val: color },
+          { label: "Forged Alloy Wheels:", val: wheel },
+          { label: "Fine Lounge Trim:", val: interior }
+        ];
+
+        let currentY = 92;
+        summaryItems.forEach(item => {
+          docPDF.setTextColor(140, 140, 140);
+          docPDF.text(item.label, 26, currentY);
+          docPDF.setTextColor(255, 255, 255);
+          docPDF.text(item.val, 75, currentY);
+          currentY += 11;
+        });
+
+        // Package descriptions
+        docPDF.setTextColor(140, 140, 140);
+        docPDF.text("Active Options:", 26, 125);
+        docPDF.setTextColor(255, 255, 255);
+        const activePkgs = packages.length > 0 ? packages.join(", ") : "Standard baseline inclusions";
+        docPDF.text(activePkgs, 75, 125, { maxWidth: 105 });
+
+        // Technical Performance Data
+        docPDF.setFillColor(20, 20, 20);
+        docPDF.rect(20, 158, 170, 54, "F");
+
+        docPDF.setTextColor(140, 140, 140);
+        docPDF.setFont("helvetica", "bold");
+        docPDF.text("TECHNICAL PERFORMANCE SPECS", 26, 166);
+
+        docPDF.setFont("helvetica", "normal");
+        docPDF.setFontSize(9.5);
+        const technicalLines = [
+          `MOTOR / CONVERTOR TYPE:      ${v.engine_type || "Tri-Motor Electric Drive"}`,
+          `SYSTEM OUTPUT (HORSEPOWER): ${v.horsepower || v.specifications?.horsepower || "1,020"} HP`,
+          `MOTIVE VELOCITY INDEX (0-60): ${v.zeroToSixty || v.specifications?.zeroToSixty || "1.99"} SEC`,
+          `TOP SPEED VELOCITY (MPH):     ${v.top_speed || v.specifications?.topSpeed || "180"} MPH`
+        ];
+
+        currentY = 175;
+        technicalLines.forEach(line => {
+          docPDF.text(line, 26, currentY);
+          currentY += 7;
+        });
+
+        // Price Valuation Box
+        docPDF.setFillColor(28, 28, 28);
+        docPDF.rect(20, 222, 170, 26, "F");
+
+        docPDF.setFontSize(9.5);
+        docPDF.setTextColor(180, 180, 180);
+        docPDF.text("ESTIMATED RETAIL TOTAL VALUATION (OUT-THE-DOOR)", 26, 232);
+        docPDF.setFontSize(14);
+        docPDF.setTextColor(255, 255, 255);
+        docPDF.setFont("helvetica", "bold");
+        docPDF.text(`$${totalPrice.toLocaleString()}`, 26, 242);
+
+        // Footer Certifications and Seal
+        docPDF.setDrawColor(40, 40, 40);
+        docPDF.line(20, 258, 190, 258);
+
+        docPDF.setTextColor(120, 120, 120);
+        docPDF.setFont("helvetica", "italic");
+        docPDF.setFontSize(8);
+        docPDF.text("Official Certification configuration of Apex Motorsports. 4-Year Bumper-to-Bumper Dynamic Tuning & Battery Pack warranty included.", 20, 266, { maxWidth: 170 });
+
+        docPDF.setFont("helvetica", "normal");
+        docPDF.text(`Serialized Certificate Code: APX-${Date.now()}`, 20, 276);
+
+        const pdfOutput = docPDF.output("arraybuffer");
+        const buffer = Buffer.from(pdfOutput);
+
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}.pdf"`);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Length", buffer.length);
+        return res.send(buffer);
+      }
+    } catch (err: any) {
+      console.error("PDF/Image Download generation failure:", err);
+      res.status(500).send("Engineering Download Failure: " + err.message);
+    }
+  };
+
+  app.get("/vehicles/:id/download", downloadHandler);
+  app.get("/api/vehicles/:id/download", downloadHandler);
 
   // Setup Vite development middleware OR serve static built files for production
   if (process.env.NODE_ENV !== "production") {

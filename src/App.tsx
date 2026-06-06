@@ -87,9 +87,16 @@ export default function App() {
           firebaseUser.displayName || "Client Guest"
         );
         setUserProfile(profile);
+        try {
+          const favs = await dbService.getFavorites(firebaseUser.uid);
+          setFavorites(favs);
+        } catch (e) {
+          console.error("Failed loading user favorites:", e);
+        }
       } else {
         setUser(null);
         setUserProfile(null);
+        setFavorites([]);
       }
       setAuthLoading(false);
     });
@@ -113,10 +120,17 @@ export default function App() {
     }
   };
 
-  const handleToggleFavorite = (id: string) => {
+  const handleToggleFavorite = async (id: string) => {
     setFavorites(prev => 
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
+    if (user) {
+      try {
+        await dbService.toggleFavorite(user.uid, id);
+      } catch (e) {
+        console.error("Failed to commit toggle favorite:", e);
+      }
+    }
   };
 
   const handleAddCompare = (id: string) => {
@@ -239,7 +253,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.25 }}
               >
-                <VehicleConfigurator selectedVehicleId={selectedVehicleId} />
+                <VehicleConfigurator selectedVehicleId={selectedVehicleId} user={user} />
               </motion.div>
             )}
 
