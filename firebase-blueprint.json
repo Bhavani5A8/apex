@@ -1,0 +1,109 @@
+{
+  "entities": {
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "High-fidelity vehicle representation covering multiple categories and specs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the vehicle" },
+        "name": { "type": "string", "description": "Display name of the vehicle" },
+        "brand": { "type": "string", "description": "Brand or manufacturer name" },
+        "model": { "type": "string", "description": "Specific vehicle model" },
+        "year": { "type": "integer", "description": "Manufacturing year" },
+        "category": { "type": "string", "description": "Category ID reference (e.g. SUV, Electric, Agricultural)" },
+        "engine_type": { "type": "string", "description": "Combustion or electric configuration" },
+        "fuel_type": { "type": "string", "description": "Electric, Hybrid, Gasoline, Diesel, Hydrogen" },
+        "transmission": { "type": "string", "description": "Manual, Automatic, Single-Speed" },
+        "horsepower": { "type": "integer", "description": "Peak horsepower output" },
+        "torque": { "type": "integer", "description": "Torque in lb-ft" },
+        "mileage": { "type": "integer", "description": "Mileage or efficiency rating details" },
+        "battery_capacity": { "type": "string", "description": "Battery capacity if electric/hybrid" },
+        "seating_capacity": { "type": "integer", "description": "Passenger capacity" },
+        "dimensions": { "type": "string", "description": "L x W x H physical dimensions" },
+        "weight": { "type": "integer", "description": "Dry weight in lbs" },
+        "top_speed": { "type": "integer", "description": "Top speed in MPH" },
+        "price": { "type": "integer", "description": "Base pricing" },
+        "description": { "type": "string", "description": "Stylistic or sales description" },
+        "specifications": { "type": "object", "description": "Full technical specifications array/mappings" },
+        "images": { "type": "array", "description": "List of URLs to high-quality vehicle images" },
+        "videos": { "type": "array", "description": "List of links to video walks" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updated_at": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["id", "name", "brand", "model", "year", "category", "price", "description"]
+    },
+    "Brand": {
+      "title": "Brand",
+      "description": "Manufacturer entity containing country, established year, and assets",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the brand" },
+        "brand_name": { "type": "string", "description": "Official name of the brand" },
+        "country": { "type": "string", "description": "Origin country" },
+        "founded_year": { "type": "integer", "description": "Year of foundation" },
+        "logo": { "type": "string", "description": "URL to brand representation logo mark" },
+        "website": { "type": "string", "description": "Brand website URL" }
+      },
+      "required": ["id", "brand_name", "country", "founded_year"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Vehicle classification taxonomy",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique taxonomy identifier" },
+        "category_name": { "type": "string", "description": "Explicit title of the category (e.g. Trucks, SUVs)" },
+        "description": { "type": "string", "description": "Category application description" }
+      },
+      "required": ["id", "category_name"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "User reviews and star ratings linked to a vehicle",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique review identifier" },
+        "vehicle_id": { "type": "string", "description": "Reference ID to the Vehicles collection" },
+        "rating": { "type": "integer", "description": "Star rating out of 5" },
+        "review": { "type": "string", "description": "Explicit text block review content" },
+        "author": { "type": "string", "description": "Name or handle of reviewing author" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Date of publication" }
+      },
+      "required": ["id", "vehicle_id", "rating", "review", "author"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Registered and authenticated platform user record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "User UID matching Firebase Auth provider" },
+        "name": { "type": "string", "description": "User display name" },
+        "email": { "type": "string", "description": "Primary authenticating email" },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "User access level" }
+      },
+      "required": ["id", "name", "email", "role"]
+    }
+  },
+  "firestore": {
+    "vehicles": {
+      "schema": { "$ref": "#/definitions/Vehicle" },
+      "description": "Storage collection for all registered vehicles"
+    },
+    "brands": {
+      "schema": { "$ref": "#/definitions/Brand" },
+      "description": "Storage collection for global vehicle brands"
+    },
+    "categories": {
+      "schema": { "$ref": "#/definitions/Category" },
+      "description": "Storage collection for taxonomical vehicle classifications"
+    },
+    "reviews": {
+      "schema": { "$ref": "#/definitions/Review" },
+      "description": "Client feedback and reviews referencing specific vehicle docs"
+    },
+    "users": {
+      "schema": { "$ref": "#/definitions/User" },
+      "description": "User profiles synchronizing credentials with role authorizations"
+    }
+  }
+}

@@ -3,8 +3,27 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import fs from "fs";
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, getDocs } from "firebase/firestore";
 
 dotenv.config();
+
+// Load Firebase configuration safely via Node's file system, avoiding ES import assertion quirks
+const firebaseConfig = JSON.parse(fs.readFileSync("./firebase-applet-config.json", "utf-8"));
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+
+// Cache container to preserve Firestore daily read queries limits
+interface CacheContainer {
+  data: any[] | null;
+  timestamp: number;
+}
+const VEHICLES_CACHE: CacheContainer = {
+  data: null,
+  timestamp: 0
+};
+const CACHE_TTL_MS = 15000; // 15 seconds Cache TTL
 
 // Standard premium vehicles catalog duplicated here for server-side AI evaluation context
 const SYSTEM_VEHICLES = [
@@ -183,6 +202,112 @@ Instructions:
       });
     }
   });
+
+  // Advanced search tolerance & matching engine
+  function matchesSearch(vehicle: any, queryStr: string): boolean {
+    if (!queryStr) return true;
+    
+    const normQueryStr = queryStr.toLowerCase().trim();
+    if (!normQueryStr) return true;
+
+    // Gather text values to match against
+    const targetFields = [
+      vehicle.name || "",
+      vehicle.brand || "",
+      vehicle.model || "",
+      vehicle.category || "",
+      vehicle.description || "",
+      vehicle.fuel_type || vehicle.fuelType || (vehicle.specs?.fuelType) || "",
+      vehicle.transmission || "",
+      vehicle.engine_type || ""
+    ].map(f => f.toLowerCase());
+
+    // Spaced and collapsed representations of targets
+    const targetSpaced = targetFields.map(f => f.replace(/[-_./,&+#]/g, " ").replace(/\s+/g, " ").trim()).join(" ");
+    const targetCollapsed = targetFields.map(f => f.replace(/[-_./,&\s+#]/g, "")).join(" ");
+
+    // Spaced and collapsed query states
+    const querySpacedTokens = normQueryStr.replace(/[-_./,&+#]/g, " ").replace(/\s+/g, " ").trim().split(" ").filter(t => t.length > 0);
+    const queryCollapsed = normQueryStr.replace(/[-_./,&\s+#]/g, "");
+
+    // Rule 1: Collapsed matching (resolves x 5 -> x5, model 3 -> model3, etc.)
+    if (queryCollapsed && targetCollapsed.includes(queryCollapsed)) {
+      return true;
+    }
+
+    // Rule 2: Multi-token prefix/substring matching
+    if (querySpacedTokens.length > 0) {
+      const allTokensMatch = querySpacedTokens.every(qToken => {
+        return (
+          targetFields.some(tf => tf.includes(qToken)) || 
+          targetSpaced.split(" ").some(tWord => tWord.startsWith(qToken) || tWord.includes(qToken))
+        );
+      });
+      if (allTokensMatch) return true;
+    }
+
+    return false;
+  }
+
+  // Retrieve matching vehicles using cache TTL layers
+  async function getCachedVehicles(): Promise<any[]> {
+    const now = Date.now();
+    if (VEHICLES_CACHE.data && (now - VEHICLES_CACHE.timestamp < CACHE_TTL_MS)) {
+      return VEHICLES_CACHE.data;
+    }
+
+    try {
+      const snap = await getDocs(collection(db, "vehicles"));
+      const data = snap.docs.map(doc => doc.data());
+      VEHICLES_CACHE.data = data;
+      VEHICLES_CACHE.timestamp = now;
+      return data;
+    } catch (dbErr) {
+      console.error("Firestore loading failure. Reverting to static dataset:", dbErr);
+      if (VEHICLES_CACHE.data) {
+        return VEHICLES_CACHE.data; // Return staled elements safely
+      }
+      return SYSTEM_VEHICLES;
+    }
+  }
+
+  // Unified Search API Endpoint supporting q=, limit, offset params
+  const searchHandler = async (req: express.Request, res: express.Response) => {
+    try {
+      const q = (req.query.q as string || "").trim();
+      const limit = parseInt(req.query.limit as string) || 20;
+      const offset = parseInt(req.query.offset as string) || 0;
+
+      const vehicles = await getCachedVehicles();
+      let filtered = vehicles;
+
+      if (q) {
+        filtered = vehicles.filter(v => matchesSearch(v, q));
+      }
+
+      const total = filtered.length;
+      const paginated = filtered.slice(offset, offset + limit);
+
+      res.json({
+        success: true,
+        query: q,
+        total,
+        limit,
+        offset,
+        results: paginated
+      });
+    } catch (err: any) {
+      console.error("Search API Routing Error:", err);
+      res.status(500).json({
+        success: false,
+        error: "Internal Search Diagnostics Error",
+        results: []
+      });
+    }
+  };
+
+  app.get("/vehicles/search", searchHandler);
+  app.get("/api/vehicles/search", searchHandler);
 
   // Setup Vite development middleware OR serve static built files for production
   if (process.env.NODE_ENV !== "production") {

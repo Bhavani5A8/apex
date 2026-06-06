@@ -42,6 +42,18 @@ export interface Vehicle {
   wheels: VehicleWheel[];
   options: VehicleFeatureOption[];
   highlights: string[];
+  // Database-driven optional specifications
+  category?: string;
+  specifications?: VehicleSpecs;
+  fuel_type?: string;
+  horsepower?: number;
+  torque?: number;
+  zeroToSixty?: string | number;
+  top_speed?: number;
+  rangeOrMpg?: string;
+  year?: number;
+  engine_type?: string;
+  transmission?: string;
 }
 
 export interface ChatMessage {
